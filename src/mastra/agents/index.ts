@@ -1,6 +1,8 @@
 import { Agent } from '@mastra/core/agent';
 import { weatherTool } from '../tools';
+import { cheqdMcpClient } from '../mcp/mcp-client';
 
+const cheqdTools = await cheqdMcpClient.getTools();
 export const weatherAgent = new Agent({
   name: 'Weather Agent',
   instructions: `
@@ -16,5 +18,5 @@ export const weatherAgent = new Agent({
       Use the weatherTool to fetch current weather data.
 `,
   model: process.env.MODEL || 'openai/gpt-4o',
-  tools: { weatherTool },
+  tools: { weatherTool, cheqdTools },
 });

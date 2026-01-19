@@ -12,7 +12,7 @@ export const mastra = new Mastra({
     level: 'info',
   }),
   storage: new LibSQLStore({
-    url: ":memory:",
+    url: "file:./mastra.db",
   }),
   observability: {
     default: {

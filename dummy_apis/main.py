@@ -1,6 +1,5 @@
 
-# create a dummy api with one endopint 
-# /get-open-positions that returns a json with open positions by reference number
+import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
@@ -92,3 +91,7 @@ async def submit_evaluation(application: Application):
 @app.get("/applications", response_model=List[Application])
 async def get_applications():
     return applications_db
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)

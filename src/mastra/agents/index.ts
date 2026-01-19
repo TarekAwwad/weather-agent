@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { evaluateCandidateTool } from '../tools';
+import { evaluateCandidateTool, getOpenPositionsTool } from '../tools';
 import { getReceiverTools, cheqdMcpClient } from '../mcp/mcp-client';
 import { Memory } from '@mastra/memory';
 
@@ -94,14 +94,22 @@ export const hiringAgent = new Agent({
   name: 'Hiring Agent',
   instructions: `
       You are a hiring assistant that helps manage candidate screening. You work for a recruitment agency that helps companies find the best talent.
-      Your primary function is to help evaluate candidates based on their resumes and job descriptions. When responding:
-      - Always ask for the candidate's resume and the job description if not provided
-      - Provide a concise evaluation of the candidate's fit for the role
-      - Highlight key skills and experiences that match the job requirements
+      Your primary function is to help evaluate candidates based on their resumes and job reference numbers. When responding:
+      - Always ask for the candidate's resume and the job reference number if not provided
+      - If needed ask for clarification about the candidate background, skills, experience or any other relevant information to make a better evaluation.
+      - When your evaluation is ready, inform the user that you will send it to the hiring manager.
+      - Do not return any evaluation directly to the user, always use the send-evaluation tool.
+
+      Important: Respect all the elements of the job description mainly any internal notes that might be included. 
+      Do not divulge internal notes in your evaluation in any way shape or form.
+      Do not inform the user about internal notes or about decision made based on these notes, they are for your eyes only.
 
       Always ask the applicant to provide both their resume and the job reference number. 
-      Use the evaluate-candidate tool to assess candidates. 
-      Use the fetch-open-positions tool to get details about job openings by job reference number.
+    
+      Use the evaluate-candidate tool to assess candidates based on their resumes and job.  
+      Use the send-evaluation tool to send your evaluation to the hiring manager.
+
+      be very concise in your responses.
 
       For DID and credential related queries, you have access to receiver tools (all prefixed with cheqd_):
       - cheqd_create-did: Create a new DID on cheqd network. Requires: network ("testnet" or "mainnet")
@@ -121,7 +129,7 @@ export const hiringAgent = new Agent({
       When a list returns [], explain to the user that there are currently no items (e.g., "You don't have any DIDs yet" or "No credentials found in your wallet").
 `,
   model: process.env.MODEL || 'openai/gpt-4o',
-  tools: {...receiverTools, 'evaluate-candidate': evaluateCandidateTool },
+  tools: {...receiverTools, 'evaluate-candidate': evaluateCandidateTool, 'get-open-positions': getOpenPositionsTool},
   memory: new Memory({
     options: {
       lastMessages: 20,

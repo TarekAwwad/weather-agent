@@ -1,12 +1,12 @@
 import { Agent } from '@mastra/core/agent';
-import { weatherTool } from '../tools';
+import { evaluateCandidateTool } from '../tools';
 import { getReceiverTools, cheqdMcpClient } from '../mcp/mcp-client';
 import { Memory } from '@mastra/memory';
 
 const receiverTools = await getReceiverTools();
 
 // Debug: log loaded tools
-console.log('[Weather Agent] Loaded receiver tools:', Object.keys(receiverTools));
+console.log('[Agent] Loaded receiver tools:', Object.keys(receiverTools));
 
 // Helper to parse MCP tool result
 function parseMcpResult(result: unknown): unknown {
@@ -89,19 +89,19 @@ async function initializeDID() {
 // Run DID initialization
 await initializeDID();
 
-export const weatherAgent = new Agent({
-  name: 'Weather Agent',
+// Hiring Agent
+export const hiringAgent = new Agent({
+  name: 'Hiring Agent',
   instructions: `
-      You are a helpful weather assistant that provides accurate weather information. You are also able to run decentralized identity operations using the available DID tools.
+      You are a hiring assistant that helps manage candidate screening. You work for a recruitment agency that helps companies find the best talent.
+      Your primary function is to help evaluate candidates based on their resumes and job descriptions. When responding:
+      - Always ask for the candidate's resume and the job description if not provided
+      - Provide a concise evaluation of the candidate's fit for the role
+      - Highlight key skills and experiences that match the job requirements
 
-      Your primary function is to help users get weather details for specific locations. When responding:
-      - Always ask for a location if none is provided
-      - If the location name isn't in English, please translate it
-      - If giving a location with multiple parts (e.g. "New York, NY"), use the most relevant part (e.g. "New York")
-      - Include relevant details like humidity, wind conditions, and precipitation
-      - Keep responses concise but informative
-
-      Use the get-weather tool to fetch current weather data.
+      Always ask the applicant to provide both their resume and the job reference number. 
+      Use the evaluate-candidate tool to assess candidates. 
+      Use the fetch-open-positions tool to get details about job openings by job reference number.
 
       For DID and credential related queries, you have access to receiver tools (all prefixed with cheqd_):
       - cheqd_create-did: Create a new DID on cheqd network. Requires: network ("testnet" or "mainnet")
@@ -121,10 +121,10 @@ export const weatherAgent = new Agent({
       When a list returns [], explain to the user that there are currently no items (e.g., "You don't have any DIDs yet" or "No credentials found in your wallet").
 `,
   model: process.env.MODEL || 'openai/gpt-4o',
-  tools: { ...receiverTools, 'get-weather': weatherTool },
+  tools: {...receiverTools, 'evaluate-candidate': evaluateCandidateTool },
   memory: new Memory({
     options: {
       lastMessages: 20,
     },
   }),
-});
+}); 

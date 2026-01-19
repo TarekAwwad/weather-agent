@@ -39,37 +39,48 @@ const getOpenPositions = async (referenceNumber?: string) => {
   return data;
 };
 
-// evaluate-candidate tool
-export const evaluateCandidateTool = createTool({
-  id: 'evaluate-candidate',
-  description: 'Evaluate a job candidate based on their resume and job description',
+// send evaluation 
+export const sendEvaluationTool = createTool({
+  id: 'send-evaluation',
+  description: 'Send the candidate evaluation to the hiring manager',
   inputSchema: z.object({
-    resume: z.string().describe('The candidate\'s resume'),
-    // jobDescription: z.string().describe('The job description for the position'),
-    referenceNumber: z.string().describe('The job reference number to fetch the job description'),
+    referenceNumber: z.string().describe('The job reference number'),
+    evaluation: z.object({
+      candidateName: z.string().describe('The name of the candidate'),
+      score: z.number().describe('Suitability score from 0 to 100'),
+      feedback: z.string().describe('Detailed feedback on the candidate\'s fit for the role'),
+    }).describe('The candidate evaluation details'),
   }),
   outputSchema: z.object({
-    score: z.number().describe('Suitability score from 0 to 100'),
-    feedback: z.string().describe('Detailed feedback on the candidate\'s fit for the role'),
+    success: z.boolean().describe('Indicates if the evaluation was sent successfully'),
+    message: z.string().describe('Additional information about the sending process'),
   }),
   execute: async ({ context }) => {
-
-    const jobPositions = await getOpenPositions(context.referenceNumber);
-    if (!jobPositions || jobPositions.length === 0) {
-      throw new Error(`No job position found for reference number: ${context.referenceNumber}`);
-    }
-    return await evaluateCandidate(context.resume, jobPositions[0].description);
+    return await sendEvaluation(context.referenceNumber, context.evaluation);
   },
 });
 
-const evaluateCandidate = async (resume: string, jobDescription: string) => {
-  // Placeholder logic for candidate evaluation
-  // In a real implementation, this could involve NLP models or external services
-  const score = Math.floor(Math.random() * 101); // Random score between 0 and 100
-  const feedback = `Based on the provided resume and job description, the candidate has been evaluated with a score of ${score}. Further analysis is recommended for a comprehensive assessment.`;
+const sendEvaluation = async (referenceNumber: string, evaluation: { candidateName: string; score: number; feedback: string }) => {
+  // POST to api localhost:8000/submit-evaluation
+  console.log(`Sending evaluation for reference number ${referenceNumber}:`, evaluation);
+  const response = await fetch('http://localhost:8000/submit-evaluation', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      candidate_name: evaluation.candidateName,
+      reference_number: referenceNumber,
+      score : evaluation.score,
+      feedback: evaluation.feedback,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Error sending evaluation: ${response.statusText}`);
+  }
 
   return {
-    score,
-    feedback,
+    success: true,
+    message: `Evaluation for reference number ${referenceNumber} sent successfully.`,
   };
 };

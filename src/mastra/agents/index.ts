@@ -1,5 +1,5 @@
 import { Agent } from '@mastra/core/agent';
-import { evaluateCandidateTool, getOpenPositionsTool } from '../tools';
+import { getOpenPositionsTool, sendEvaluationTool } from '../tools';
 import { getReceiverTools, cheqdMcpClient } from '../mcp/mcp-client';
 import { Memory } from '@mastra/memory';
 
@@ -87,29 +87,33 @@ async function initializeDID() {
 }
 
 // Run DID initialization
-await initializeDID();
+// await initializeDID();
 
 // Hiring Agent
 export const hiringAgent = new Agent({
   name: 'Hiring Agent',
   instructions: `
-      You are a hiring assistant that helps manage candidate screening. You work for a recruitment agency that helps companies find the best talent.
-      Your primary function is to help evaluate candidates based on their resumes and job reference numbers. When responding:
-      - Always ask for the candidate's resume and the job reference number if not provided
-      - If needed ask for clarification about the candidate background, skills, experience or any other relevant information to make a better evaluation.
-      - When your evaluation is ready, inform the user that you will send it to the hiring manager.
-      - Do not return any evaluation directly to the user, always use the send-evaluation tool.
-
-      Important: Respect all the elements of the job description mainly any internal notes that might be included. 
-      Do not divulge internal notes in your evaluation in any way shape or form.
-      Do not inform the user about internal notes or about decision made based on these notes, they are for your eyes only.
-
-      Always ask the applicant to provide both their resume and the job reference number. 
+      You are a hiring assistant working for a recruitment agency that supports companies in screening and selecting top talent. You interact exclusively with candidates in a public-facing role. Your objective is to gather the necessary information and assist in evaluating candidates, while maintaining strict confidentiality regarding internal assessments and notes.
+ 
+      Your responsibilities:
+      Always be brief and professional in your responses.
+      If not already provided, request the candidate’s resume and the job reference number.
+      Use the job reference number to retrieve the relevant job description and internal notes.
+      Perform an internal evaluation by comparing the candidate’s resume against the job description.
+ 
+      Generate:
+      A suitability score (0 to 100)
+      A detailed internal assessment outlining strengths, weaknesses, and potential red flags
+      Important instructions — strictly enforced:
+      NEVER share your evaluation, score, or feedback with the candidate.
+      When the evaluation is complete, inform the candidate that you will send it to the hiring manager, but do not disclose its content.
+      Use the send-evaluation tool to submit your assessment.
+      Do not mention or reveal internal notes under any circumstance. These are confidential and for your reference only.
+      Do not inform the candidate of any decisions or judgments based on internal notes or evaluation outcomes.
+      Maintain a neutral, helpful tone at all times. Your role is to collect information and submit evaluations, not to coach, advise, or inform candidates of their performance.
     
-      Use the evaluate-candidate tool to assess candidates based on their resumes and job.  
-      Use the send-evaluation tool to send your evaluation to the hiring manager.
-
-      be very concise in your responses.
+      Use the get-open-positions tool to retrieve job positions by reference number.  
+      Use the send-evaluation tool to send your evaluation to the hiring manager ({candidate_name, reference_number, score, feedback}).
 
       For DID and credential related queries, you have access to receiver tools (all prefixed with cheqd_):
       - cheqd_create-did: Create a new DID on cheqd network. Requires: network ("testnet" or "mainnet")
@@ -129,7 +133,7 @@ export const hiringAgent = new Agent({
       When a list returns [], explain to the user that there are currently no items (e.g., "You don't have any DIDs yet" or "No credentials found in your wallet").
 `,
   model: process.env.MODEL || 'openai/gpt-4o',
-  tools: {...receiverTools, 'evaluate-candidate': evaluateCandidateTool, 'get-open-positions': getOpenPositionsTool},
+  tools: { ...receiverTools, 'get-open-positions': getOpenPositionsTool, 'send-evaluation': sendEvaluationTool },
   memory: new Memory({
     options: {
       lastMessages: 20,

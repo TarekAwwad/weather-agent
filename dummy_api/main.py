@@ -70,3 +70,25 @@ async def get_open_position_by_reference(reference_number: str):
 
 # To run the app, use the command:
 # uvicorn dummy_api.main:app --reload
+
+
+class Application(BaseModel):
+    candidate_name: str
+    reference_number: str
+    # resume: str
+    score: int
+    feedback: str   
+
+applications_db = []  # In-memory storage for applications
+
+# application/json
+@app.post("/submit-evaluation")
+async def submit_evaluation(application: Application):
+    print("Received evaluation for:", application.candidate_name, "Reference Number:", application.reference_number, "Score:", application.score)
+    # In a real application, you would save this to a database
+    applications_db.append(application)
+    return {"message": "Evaluation submitted successfully", "application_id": len(applications_db) - 1}
+
+@app.get("/applications", response_model=List[Application])
+async def get_applications():
+    return applications_db

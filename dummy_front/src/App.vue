@@ -2,25 +2,55 @@
 import { ref } from 'vue'
 
 const jobs = [
-  { id: 1, title: 'Senior Frontend Developer', reference: 'REF-2026-001' },
-  { id: 2, title: 'Backend Engineer', reference: 'REF-2026-002' },
-  { id: 3, title: 'Full Stack Developer', reference: 'REF-2026-003' },
-  { id: 4, title: 'DevOps Engineer', reference: 'REF-2026-004' },
-  { id: 5, title: 'UI/UX Designer', reference: 'REF-2026-005' },
+  { id: 1, title: 'Software Engineer', reference: 'REF123' },
+  { id: 2, title: 'Product Manager', reference: 'REF456' },
+  { id: 3, title: 'Data Scientist', reference: 'REF789' },
+  { id: 4, title: 'DevOps Engineer', reference: 'REF101' },
+  { id: 5, title: 'UI/UX Designer', reference: 'REFF102' },
 ]
 
 const selectedJob = ref(null)
 const cvText = ref('')
 const submitted = ref(false)
+const isSubmitting = ref(false)
+const submitError = ref(null)
 
 function selectJob(job) {
   selectedJob.value = job
   submitted.value = false
+  submitError.value = null
 }
 
-function submitApplication() {
+async function submitApplication() {
   if (selectedJob.value && cvText.value.trim()) {
-    submitted.value = true
+    isSubmitting.value = true
+    submitError.value = null
+    
+    try {
+      const response = await fetch('http://localhost:4111/api/workflows/weatherWorkflow/start?runId=6560dc54-046d-45fa-8bae-6f56c698ef74', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputData: {
+            jobRef: selectedJob.value.reference,
+            resume: cvText.value.trim()
+          }
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`)
+      }
+      
+      submitted.value = true
+    } catch (error) {
+      submitError.value = error.message || 'Failed to submit application'
+      console.error('Submission error:', error)
+    } finally {
+      isSubmitting.value = false
+    }
   }
 }
 
@@ -28,6 +58,7 @@ function resetForm() {
   selectedJob.value = null
   cvText.value = ''
   submitted.value = false
+  submitError.value = null
 }
 </script>
 
@@ -105,10 +136,15 @@ function resetForm() {
                 placeholder="Paste your CV here..."
                 rows="12"
                 required
+                :disabled="isSubmitting"
               ></textarea>
             </div>
-            <button type="submit" class="btn btn-primary" :disabled="!cvText.trim()">
-              Submit Application
+            <div v-if="submitError" class="error-message">
+              {{ submitError }}
+            </div>
+            <button type="submit" class="btn btn-primary" :disabled="!cvText.trim() || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner"></span>
+              {{ isSubmitting ? 'Submitting...' : 'Submit Application' }}
             </button>
           </form>
         </section>
@@ -248,12 +284,31 @@ function resetForm() {
   border-color: #667eea;
 }
 
+.form-group textarea:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
 .form-group textarea::placeholder {
   color: #aaa;
 }
 
+/* Error Message */
+.error-message {
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
 /* Buttons */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   padding: 0.875rem 1.5rem;
   border: none;
   border-radius: 10px;
@@ -261,6 +316,22 @@ function resetForm() {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .btn-primary {

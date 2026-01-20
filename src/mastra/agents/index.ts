@@ -86,15 +86,29 @@ async function initializeDID() {
   }
 }
 
+function somethingInsideAgent({
+  tracingContext,
+  currentSpan,
+}: {
+  tracingContext?: { currentSpan?: { traceId: string } };
+  currentSpan?: { traceId: string };
+}) {
+  const traceId =
+    currentSpan?.traceId ?? tracingContext?.currentSpan?.traceId;
+  console.log('Trace ID inside agent:', traceId);
+  return traceId;
+}
+
 // Run DID initialization
 // await initializeDID();
+somethingInsideAgent({});
 
 // Hiring Agent
 export const hiringAgent = new Agent({
   name: 'Hiring Agent',
   instructions: `
       You are a hiring assistant working for a recruitment agency that supports companies in screening and selecting top talent. You interact exclusively with candidates in a public-facing role. Your objective is to gather the necessary information and assist in evaluating candidates, while maintaining strict confidentiality regarding internal assessments and notes.
- 
+
       Your responsibilities:
       Always be brief and professional in your responses.
       If not already provided, request the candidate’s resume and the job reference number.
@@ -104,6 +118,7 @@ export const hiringAgent = new Agent({
       Generate:
       A suitability score (0 to 100)
       A detailed internal assessment outlining strengths, weaknesses, and potential red flags
+
       Important instructions — strictly enforced:
       NEVER share your evaluation, score, or feedback with the candidate.
       When the evaluation is complete, inform the candidate that you will send it to the hiring manager, but do not disclose its content.
@@ -111,7 +126,8 @@ export const hiringAgent = new Agent({
       Do not mention or reveal internal notes under any circumstance. These are confidential and for your reference only.
       Do not inform the candidate of any decisions or judgments based on internal notes or evaluation outcomes.
       Maintain a neutral, helpful tone at all times. Your role is to collect information and submit evaluations, not to coach, advise, or inform candidates of their performance.
-    
+
+      Always call the anchor-trace-tool at the beginning and end of each interaction.
       Use the get-open-positions tool to retrieve job positions by reference number.  
       Use the send-evaluation tool to send your evaluation to the hiring manager ({candidate_name, reference_number, score, feedback}).
 

@@ -9,26 +9,25 @@ export const getOpenPositionsTool = createTool({
   description: 'Retrieve an open job positions from the company database by reference number',
   inputSchema: z.object({
     referenceNumber: z.string().describe('The reference number of the job position'),
+    resume: z.string().describe('The candidate resume text'),
   }),
   outputSchema: z.object({
-    positions: z.array(
+    jobDescription: 
       z.object({
         referenceNumber: z.string().describe('The reference number of the job position'),
         title: z.string().describe('The title of the job position'),
         department: z.string().describe('The department of the job position'),
         location: z.string().describe('The location of the job position'),
         description: z.string().describe('The description of the job position'),
-      })
-    ).describe('List of open job positions'),
-
+      }),
+      resume: z.string().describe('The candidate resume text'),
   }),
   execute: async ({ context }) => {
-    return await getOpenPositions(context.referenceNumber);
+    return { jobDescription: await getOpenPositions(context.referenceNumber), resume: context.resume  };
   },
 });
 
 const getOpenPositions = async (referenceNumber?: string) => {
-  // api localhost:8000/open-positions/{reference_number}
   const response = await fetch('http://localhost:8000/open-positions/' + (referenceNumber ? referenceNumber : 'REF123'));
   if (!response.ok) {
     throw new Error(`Error fetching open positions: ${response.statusText}`);
@@ -55,7 +54,8 @@ export const sendEvaluationTool = createTool({
     success: z.boolean().describe('Indicates if the evaluation was sent successfully'),
     message: z.string().describe('Additional information about the sending process'),
   }),
-  execute: async ({ context }) => {
+  execute: async ({ context, tracingContext }) => {
+    console.log('Trace ID in sendEvaluationTool:', tracingContext?.currentSpan?.traceId);
     return await sendEvaluation(context.referenceNumber, context.evaluation);
   },
 });
@@ -69,8 +69,8 @@ const sendEvaluation = async (referenceNumber: string, evaluation: { candidateNa
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      candidate_name: evaluation.candidateName,
-      reference_number: referenceNumber,
+      candidateName: evaluation.candidateName,
+      referenceNumber: referenceNumber,
       score : evaluation.score,
       feedback: evaluation.feedback,
     }),
@@ -84,3 +84,4 @@ const sendEvaluation = async (referenceNumber: string, evaluation: { candidateNa
     message: `Evaluation for reference number ${referenceNumber} sent successfully.`,
   };
 };
+

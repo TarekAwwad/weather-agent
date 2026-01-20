@@ -6,7 +6,7 @@ from typing import List
 app = FastAPI()
 
 class Position(BaseModel):
-    reference_number: str
+    referenceNumber: str
     title: str
     department: str
     location: str
@@ -24,35 +24,35 @@ job_descriptions = {
 
 open_positions = [
     Position(
-        reference_number="REF123",
+        referenceNumber="REF123",
         title="Software Engineer",
         department="Engineering",
         location="New York, NY",
         description= job_descriptions["REF123"]
     ),
     Position(
-        reference_number="REF456",
+        referenceNumber="REF456",
         title="Product Manager",
         department="Product",
         location="San Francisco, CA",
         description= job_descriptions["REF456"]
     ),
     Position(
-        reference_number="REF789",
+        referenceNumber="REF789",
         title="Data Scientist",
         department="Data Science",
         location="Remote",
         description= job_descriptions["REF789"]
     ),
     Position(
-        reference_number="REF101",
+        referenceNumber="REF101",
         title="DevOps Engineer",
         department="Engineering",
         location="Austin, TX",
         description= job_descriptions["REF101"]
     ),
     Position(
-        reference_number="REF102",
+        referenceNumber="REF102",
         title="UI/UX Designer",
         department="Design",
         location="Seattle, WA",
@@ -69,8 +69,8 @@ async def get_open_positions():
     )
 
 # get open positions by reference number
-@app.get("/open-positions/{reference_number}", response_model=Position)
-async def get_open_position_by_reference(reference_number: str):
+@app.get("/open-positions/{referenceNumber}", response_model=Position)
+async def get_open_position_by_reference(referenceNumber: str):
     positions = {
         "REF123": open_positions[0],
         "REF456": open_positions[1],
@@ -78,7 +78,7 @@ async def get_open_position_by_reference(reference_number: str):
         "REF101": open_positions[3],
         "REF102": open_positions[4],
     }
-    position = positions.get(reference_number)
+    position = positions.get(referenceNumber)
     print(position)
     if position:
         return position
@@ -90,8 +90,8 @@ async def get_open_position_by_reference(reference_number: str):
 
 
 class Application(BaseModel):
-    candidate_name: str
-    reference_number: str
+    candidateName: str
+    referenceNumber: str
     # resume: str
     score: int
     feedback: str   
@@ -101,7 +101,7 @@ applications_db = []  # In-memory storage for applications
 # application/json
 @app.post("/submit-evaluation")
 async def submit_evaluation(application: Application):
-    print("Received evaluation for:", application.candidate_name, "Reference Number:", application.reference_number, "Score:", application.score)
+    print("Received evaluation for:", application.candidateName, "Reference Number:", application.referenceNumber, "Score:", application.score)
     # In a real application, you would save this to a database
     applications_db.append(application)
     return {"message": "Evaluation submitted successfully", "application_id": len(applications_db) - 1}

@@ -27,21 +27,36 @@ async function submitApplication() {
     submitError.value = null
     
     try {
-      const response = await fetch('http://localhost:4111/api/workflows/weatherWorkflow/start?runId=6560dc54-046d-45fa-8bae-6f56c698ef74', {
+      // Step 1: Create a run and get the runId
+      const createRunResponse = await fetch('http://localhost:4111/api/workflows/evaluationWorkflow/create-run', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      
+      if (!createRunResponse.ok) {
+        throw new Error(`Failed to create run: ${createRunResponse.status}`)
+      }
+      
+      const { runId } = await createRunResponse.json()
+      
+      // Step 2: Start the workflow with the runId and inputData
+      const startResponse = await fetch(`http://localhost:4111/api/workflows/evaluationWorkflow/start?runId=${runId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           inputData: {
-            jobRef: selectedJob.value.reference,
+            referenceNumber: selectedJob.value.reference,
             resume: cvText.value.trim()
           }
         })
       })
       
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`)
+      if (!startResponse.ok) {
+        throw new Error(`Failed to start workflow: ${startResponse.status}`)
       }
       
       submitted.value = true

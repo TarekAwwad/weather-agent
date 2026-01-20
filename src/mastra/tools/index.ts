@@ -1,3 +1,5 @@
+import { getAITracing } from '@mastra/core/ai-tracing';
+import { getTracer } from '@mastra/core/loop/telemetry';
 import { createTool } from '@mastra/core/tools';
 import { ref } from 'process';
 import { z } from 'zod';
@@ -54,8 +56,7 @@ export const sendEvaluationTool = createTool({
     success: z.boolean().describe('Indicates if the evaluation was sent successfully'),
     message: z.string().describe('Additional information about the sending process'),
   }),
-  execute: async ({ context, tracingContext }) => {
-    console.log('Trace ID in sendEvaluationTool:', tracingContext?.currentSpan?.traceId);
+  execute: async ({ context }) => {
     return await sendEvaluation(context.referenceNumber, context.evaluation);
   },
 });
@@ -85,3 +86,35 @@ const sendEvaluation = async (referenceNumber: string, evaluation: { candidateNa
   };
 };
 
+
+// submit trace tool
+export const anchorTraceTool = createTool({
+  id: 'anchor-trace-tool',
+  description: 'Anchor trace information for the current interaction',
+  inputSchema: z.object({}),
+  outputSchema: z.object({
+    anchored: z.boolean().describe('Indicates if the trace was anchored successfully'),
+  }),
+  execute: async ({ context, tracingContext }) => {
+    console.log("Anchoring trace with context:", context, "and tracingContext:", tracingContext);
+    return await anchorTrace(tracingContext?.currentSpan?.traceId || "unknown");
+  }
+}); 
+
+const anchorTrace = async (traceId: string) => {
+  // POST to api localhost:8000/anchor-trace
+  console.log(`Anchoring trace ID ${traceId}`);
+  const response = await fetch('http://localhost:8001/anchor-trace', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      trace_id: traceId,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Error anchoring trace: ${response.statusText}`);
+  }
+  return { anchored: true };
+};

@@ -1,7 +1,7 @@
 import { Agent } from '@mastra/core/agent';
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
-import { getOpenPositionsTool, sendEvaluationTool } from '../tools';
+import { getOpenPositionsTool, sendEvaluationTool, anchorTraceTool } from '../tools';
 import { get } from 'http';
 
 const agent = new Agent({
@@ -29,6 +29,7 @@ const agent = new Agent({
 
 const getOpenPositions = createStep(getOpenPositionsTool);
 const sendEvaluation = createStep(sendEvaluationTool);
+const anchorTrace = createStep(anchorTraceTool);
 const evaluateCandidate = createStep({
     id: 'evaluate-candidate',
     description: 'Evaluate the candidate based on the job description and resume',
@@ -88,7 +89,9 @@ const evaluationWorkflow = createWorkflow({
 })
     .then(getOpenPositions)
     .then(evaluateCandidate)
-    .then(sendEvaluation);
+    .then(sendEvaluation)
+    .then(anchorTrace);
+
 
 evaluationWorkflow.commit();
 

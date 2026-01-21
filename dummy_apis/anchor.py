@@ -6,12 +6,23 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Any, Dict, List
 import requests
+import dotenv
+import os
+import base64
+
+dotenv.load_dotenv()
+
+# laod environment variables
+STUDIO_API_KEY = os.getenv("STUDIO_API_KEY")
+STUDIO_URL = os.getenv("STUDIO_URL")
+AGENT_DID = os.getenv("AGENT_DID")
+AUTH_DID = os.getenv("AUTH_DID")
 
 app = FastAPI()
 
 
-
 Span = Dict[str, Any]
+
 
 def _canon(obj: Any) -> bytes:
     """
@@ -64,15 +75,21 @@ def _span_sort_key(span: Span) -> tuple:
         str(span.get("spanId", "")),
     )
 
-def spans_to_merkle_root(spans=[b'ASD' for _ in range(10)]):
-    tree = MerkleTree(algorithm='sha256').init_from_entries(spans)
+
+def spans_to_merkle_root(spans=[b"ASD" for _ in range(10)]):
+    tree = MerkleTree(algorithm="sha256").init_from_entries(spans)
     return tree.get_state()
+
 
 # post Trace ID to be anchored
 class TraceIDRequest(BaseModel):
     trace_id: str
+
+
 class AnchorResponse(BaseModel):
     merkle_root: str
+
+
 @app.post("/anchor-trace", response_model=AnchorResponse)
 async def anchor_trace(request: TraceIDRequest):
     print("Received Trace ID to anchor:", request.trace_id)
@@ -87,14 +104,16 @@ async def anchor_trace(request: TraceIDRequest):
     root = merkle_state.hex()
     print("Returning Merkle Root:", root)
 
+    post_to_ledger(root, request.trace_id)
+
     return AnchorResponse(merkle_root=root)
 
 
 def fetch_trace_by_id(trace_id: str):
-    api = f"http://localhost:4111/api/observability/traces/{trace_id}" 
+    api = f"http://localhost:4111/api/observability/traces/{trace_id}"
 
     response = requests.get(api)
-    
+
     if response.status_code == 200:
         spans = response.json().get("spans", [])
         return spans
@@ -106,11 +125,50 @@ def fetch_trace_by_id(trace_id: str):
 def canonicalize_span(span_data):
     # span data is a dict
     # TODO: Canonicalization via RFC 8785
-    # This is a placeholder implementation 
+    # This is a placeholder implementation
     spans_canonical = _canon(span_data)
 
     # Implement canonicalization logic as needed
     return spans_canonical
+
+
+def post_to_ledger(root: str, trace_id: str):
+    # DLR creation endpoint
+    url = f"{STUDIO_URL}/resource/create/{AUTH_DID}"
+    headers = {
+        "x-api-key": STUDIO_API_KEY,   
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "*/*"
+    }
+
+    # Prepare and encode data trace information
+    data = encode_base64url(str({
+        "agentDid": AGENT_DID,
+        "runId": "evaluationWorkflow",
+        "traceId": trace_id,
+        "merkleRoot": root
+    }))
+
+    # POST request to create DLR
+    payload = {
+        "data": f"{data}",
+        "encoding": "base64url",
+        "name": "AgentTraceProof",
+        "type": "TextDocument"
+    }
+    response = requests.post(url, headers=headers, data=payload)
+    if response.status_code == 200:
+        print("Successfully posted to ledger.")
+    else:
+        print("Failed to post to ledger. Status code:", response.status_code, response.text)
+    return
+
+
+def encode_base64url(data: str) -> str:
+    """Encode data to base64url without padding."""
+    encoded = base64.urlsafe_b64encode(data.encode("utf-8")).decode("utf-8")
+    return encoded
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8001)

@@ -130,10 +130,22 @@ wheels = [
 ]
 
 [[package]]
+name = "dotenv"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
+]
+
+[[package]]
 name = "dummy-api"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "dotenv" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pymerkle" },
@@ -143,6 +155,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastapi", specifier = ">=0.128.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pymerkle", specifier = ">=6.1.0" },
@@ -279,6 +292,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/61/90/b96b3af828426da138107270e6942b5aac9525c6b1eddec73c9ecd63134f/pymerkle-6.1.0.tar.gz", hash = "sha256:bf43addba1c49da4f7fd905a6836f58f9e99294b2b34c6460b24f53156ed285a", size = 36178, upload-time = "2023-08-30T14:42:25.048Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/46/0b5c80ee9912fcd174d112c00f95d12f19e88dec00177c6b3a51b1330d4f/pymerkle-6.1.0-py3-none-any.whl", hash = "sha256:9ba32e71fc9bd53a65c2815414aca9e3c43b9d0376b3c73d41cb7b3814267a0a", size = 34289, upload-time = "2023-08-30T14:42:22.46Z" },
+]
+
+[[package]]
+name = "python-dotenv"
+version = "1.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f0/26/19cadc79a718c5edbec86fd4919a6b6d3f681039a2f6d66d14be94e75fb9/python_dotenv-1.2.1.tar.gz", hash = "sha256:42667e897e16ab0d66954af0e60a9caa94f0fd4ecf3aaf6d2d260eec1aa36ad6", size = 44221, upload-time = "2025-10-26T15:12:10.434Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/1b/a298b06749107c305e1fe0f814c6c74aea7b2f1e10989cb30f544a1b3253/python_dotenv-1.2.1-py3-none-any.whl", hash = "sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61", size = 21230, upload-time = "2025-10-26T15:12:09.109Z" },
 ]
 
 [[package]]

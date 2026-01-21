@@ -1,4 +1,4 @@
-<script setup>
+<script setup la>
 import { ref } from 'vue'
 
 const jobs = [
@@ -6,14 +6,126 @@ const jobs = [
   { id: 2, title: 'Product Manager', reference: 'REF456' },
   { id: 3, title: 'Data Scientist', reference: 'REF789' },
   { id: 4, title: 'DevOps Engineer', reference: 'REF101' },
-  { id: 5, title: 'UI/UX Designer', reference: 'REFF102' },
+  { id: 5, title: 'UI/UX Designer', reference: 'REF102' },
 ]
+
 
 const selectedJob = ref(null)
 const cvText = ref('')
 const submitted = ref(false)
 const isSubmitting = ref(false)
+const isProcessing = ref(false)
 const submitError = ref(null)
+
+// Notification state
+const notifications = ref([])
+let notificationId = 0
+
+function addNotification(message, type = 'info') {
+  const id = ++notificationId
+  notifications.value.push({ id, message, type })
+
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    removeNotification(id)
+  }, 5000)
+}
+
+function removeNotification(id) {
+  notifications.value = notifications.value.filter(n => n.id !== id)
+}
+
+async function watchWorkflow(workflowId, runId) {
+  const stepNames = {
+    'get-open-positions': 'Fetching Open Positions',
+    'evaluate-candidate': 'Evaluating Candidate',
+    'send-evaluation': 'Sending Evaluation',
+    'anchor-trace': 'Recording Audit Trail'
+  }
+
+  try {
+    const watchRes = await fetch(`http://localhost:4111/api/workflows/${workflowId}/watch?runId=${runId}`, {
+      method: 'GET',
+      headers: {
+        "Accept": "application/x-ndjson, application/json, text/event-stream",
+      },
+    })
+
+    if (!watchRes.ok || !watchRes.body) {
+      throw new Error(`watch failed: ${watchRes.status}`);
+    }
+
+    const reader = watchRes.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        isProcessing.value = false
+        submitted.value = true
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // The stream format is: "{...json1...}""{...json2...}"
+      // Events are quoted JSON strings concatenated with ""
+      // Split on "" to separate events, then parse each
+      console.log('Buffer chunk:', buffer)
+      const events = buffer.split('""')
+      console.log('Received events chunk:', events)
+      
+      // Keep the last part in buffer (might be incomplete)
+      buffer = events.pop() || ''
+      
+      for (const eventStr of events) {
+        if (!eventStr) continue
+        
+        // Remove leading/trailing quotes and unescape the JSON string
+        let jsonStr = eventStr
+        if (jsonStr.startsWith('"')) jsonStr = jsonStr.slice(1)
+        if (jsonStr.endsWith('"')) jsonStr = jsonStr.slice(0, -1)
+        
+        // Unescape the JSON (it's a quoted string with escaped quotes inside)
+        try {
+          // The content is escaped JSON, so we need to unescape it
+          const unescaped = jsonStr.replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+          const data = JSON.parse(unescaped)
+          
+          // Handle step completion (currentStep with status success)
+          if (data.type === 'watch' && data.payload?.currentStep) {
+            const step = data.payload.currentStep
+            if (step.status === 'success') {
+              const stepName = stepNames[step.id] || step.id
+              addNotification(`✓ ${stepName}`, 'success')
+            }
+          }
+          
+          // Handle workflow completion (workflowState with final status)
+          if (data.type === 'watch' && data.payload?.workflowState) {
+            const workflowState = data.payload.workflowState
+            if (workflowState.status === 'success') {
+              addNotification('🎉 Application review complete!', 'success')
+              isProcessing.value = false
+              submitted.value = true
+            } else if (workflowState.status === 'failed') {
+              addNotification('Application review failed', 'error')
+              isProcessing.value = false
+            }
+          }
+        } catch (e) {
+          console.error('Failed to parse event:', e, jsonStr)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Watch error:', error)
+    addNotification('Lost connection to workflow updates', 'error')
+    isProcessing.value = false
+  }
+}
+
 
 function selectJob(job) {
   selectedJob.value = job
@@ -25,7 +137,7 @@ async function submitApplication() {
   if (selectedJob.value && cvText.value.trim()) {
     isSubmitting.value = true
     submitError.value = null
-    
+
     try {
       // Step 1: Create a run and get the runId
       const createRunResponse = await fetch('http://localhost:4111/api/workflows/evaluationWorkflow/create-run', {
@@ -34,14 +146,18 @@ async function submitApplication() {
           'Content-Type': 'application/json',
         }
       })
-      
+
       if (!createRunResponse.ok) {
         throw new Error(`Failed to create run: ${createRunResponse.status}`)
       }
-      
+
       const { runId } = await createRunResponse.json()
-      
-      // Step 2: Start the workflow with the runId and inputData
+      // addNotification(`Application submitted. Tracking ID: ${runId.slice(0, 8)}...`, 'info')
+
+      // Step 2: Start watching the workflow for updates (before starting)
+      watchWorkflow('evaluationWorkflow', runId)
+
+      // Step 3: Start the workflow with the runId and inputData
       const startResponse = await fetch(`http://localhost:4111/api/workflows/evaluationWorkflow/start?runId=${runId}`, {
         method: 'POST',
         headers: {
@@ -54,14 +170,17 @@ async function submitApplication() {
           }
         })
       })
-      
+
       if (!startResponse.ok) {
         throw new Error(`Failed to start workflow: ${startResponse.status}`)
       }
-      
-      submitted.value = true
+
+      addNotification(`Processing your application ... Tracking ID: ${runId.slice(0, 8)}...`, 'info')
+
+      isProcessing.value = true
     } catch (error) {
       submitError.value = error.message || 'Failed to submit application'
+      addNotification(error.message || 'Failed to submit application', 'error')
       console.error('Submission error:', error)
     } finally {
       isSubmitting.value = false
@@ -69,16 +188,34 @@ async function submitApplication() {
   }
 }
 
+
 function resetForm() {
   selectedJob.value = null
   cvText.value = ''
   submitted.value = false
+  isProcessing.value = false
   submitError.value = null
 }
 </script>
 
 <template>
   <div class="app-container">
+    <!-- Notifications -->
+    <div class="notifications-container">
+      <transition-group name="notification">
+        <div v-for="notification in notifications" :key="notification.id"
+          :class="['notification', `notification-${notification.type}`]" @click="removeNotification(notification.id)">
+          <span class="notification-icon">
+            <template v-if="notification.type === 'success'">✓</template>
+            <template v-else-if="notification.type === 'error'">✕</template>
+            <template v-else>ℹ</template>
+          </span>
+          <span class="notification-message">{{ notification.message }}</span>
+          <button class="notification-close">×</button>
+        </div>
+      </transition-group>
+    </div>
+
     <header class="app-header">
       <h1>Job Application Board</h1>
       <p class="subtitle">Find your next opportunity</p>
@@ -90,8 +227,8 @@ function resetForm() {
         <div class="ai-banner-left">
           <span class="ai-chip">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/>
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8" />
             </svg>
             AI-Assisted
           </span>
@@ -99,8 +236,10 @@ function resetForm() {
         </div>
         <div class="audit-badge">
           <svg class="badge-shield" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L3 7V12C3 17.25 6.85 22.04 12 23C17.15 22.04 21 17.25 21 12V7L12 2Z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
-            <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M12 2L3 7V12C3 17.25 6.85 22.04 12 23C17.15 22.04 21 17.25 21 12V7L12 2Z"
+              fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" />
+            <path d="M9 12L11 14L15 10" stroke="white" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" />
           </svg>
           <div class="badge-info">
             <span class="badge-label">FairTech Alliance</span>
@@ -111,8 +250,20 @@ function resetForm() {
     </div>
 
     <main class="main-content">
+      <!-- Processing State -->
+      <div v-if="isProcessing" class="processing-card">
+        <div class="processing-spinner">
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+          <div class="spinner-ring"></div>
+        </div>
+        <h2>Processing Your Application</h2>
+        <p>Our AI is reviewing your CV for <strong>{{ selectedJob.title }}</strong></p>
+        <p class="processing-hint">This may take a moment. Check the notifications for updates.</p>
+      </div>
+
       <!-- Success Message -->
-      <div v-if="submitted" class="success-card">
+      <div v-else-if="submitted" class="success-card">
         <div class="success-icon">✓</div>
         <h2>Application Submitted!</h2>
         <p>Thank you for applying to <strong>{{ selectedJob.title }}</strong></p>
@@ -125,12 +276,8 @@ function resetForm() {
         <section class="jobs-section">
           <h2>Available Positions</h2>
           <div class="jobs-list">
-            <div
-              v-for="job in jobs"
-              :key="job.id"
-              :class="['job-card', { selected: selectedJob?.id === job.id }]"
-              @click="selectJob(job)"
-            >
+            <div v-for="job in jobs" :key="job.id" :class="['job-card', { selected: selectedJob?.id === job.id }]"
+              @click="selectJob(job)">
               <h3>{{ job.title }}</h3>
               <span class="job-reference">{{ job.reference }}</span>
             </div>
@@ -141,18 +288,12 @@ function resetForm() {
         <section v-if="selectedJob" class="application-section">
           <h2>Apply for {{ selectedJob.title }}</h2>
           <p class="selected-reference">Reference: {{ selectedJob.reference }}</p>
-          
+
           <form @submit.prevent="submitApplication" class="application-form">
             <div class="form-group">
               <label for="cv">Paste your CV (plain text)</label>
-              <textarea
-                id="cv"
-                v-model="cvText"
-                placeholder="Paste your CV here..."
-                rows="12"
-                required
-                :disabled="isSubmitting"
-              ></textarea>
+              <textarea id="cv" v-model="cvText" placeholder="Paste your CV here..." rows="12" required
+                :disabled="isSubmitting"></textarea>
             </div>
             <div v-if="submitError" class="error-message">
               {{ submitError }}
@@ -209,14 +350,17 @@ function resetForm() {
 }
 
 /* Jobs Section */
-.jobs-section, .application-section, .placeholder-section {
+.jobs-section,
+.application-section,
+.placeholder-section {
   background: white;
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
 }
 
-.jobs-section h2, .application-section h2 {
+.jobs-section h2,
+.application-section h2 {
   margin: 0 0 1rem 0;
   color: #333;
   font-size: 1.3rem;
@@ -383,6 +527,74 @@ function resetForm() {
   margin-bottom: 1rem;
 }
 
+/* Processing Card */
+.processing-card {
+  grid-column: 1 / -1;
+  background: white;
+  border-radius: 16px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.processing-card h2 {
+  margin: 0 0 1rem 0;
+  color: #333;
+}
+
+.processing-card p {
+  color: #666;
+  margin: 0.5rem 0;
+}
+
+.processing-hint {
+  font-size: 0.875rem;
+  color: #888;
+  margin-top: 1rem;
+}
+
+.processing-spinner {
+  width: 80px;
+  height: 80px;
+  position: relative;
+  margin: 0 auto 1.5rem;
+}
+
+.spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid transparent;
+}
+
+.spinner-ring:nth-child(1) {
+  border-top-color: #667eea;
+  animation: spinRing 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.spinner-ring:nth-child(2) {
+  border-right-color: #764ba2;
+  animation: spinRing 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  animation-delay: -0.4s;
+}
+
+.spinner-ring:nth-child(3) {
+  border-bottom-color: #667eea;
+  animation: spinRing 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  animation-delay: -0.8s;
+}
+
+@keyframes spinRing {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Success Card */
 .success-card {
   grid-column: 1 / -1;
@@ -527,5 +739,119 @@ function resetForm() {
   font-size: 0.65rem;
   color: rgba(255, 255, 255, 0.7);
   line-height: 1.2;
+}
+
+/* Notifications */
+.notifications-container {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 380px;
+  width: 100%;
+  pointer-events: none;
+}
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notification:hover {
+  transform: translateX(-4px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.notification-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.notification-info .notification-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.notification-success .notification-icon {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: white;
+}
+
+.notification-error .notification-icon {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  color: white;
+}
+
+.notification-message {
+  flex: 1;
+  font-size: 0.875rem;
+  color: #333;
+  line-height: 1.4;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.notification-close:hover {
+  color: #666;
+}
+
+/* Notification animations */
+.notification-enter-active {
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification-leave-active {
+  animation: slideOut 0.3s ease-in;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 </style>

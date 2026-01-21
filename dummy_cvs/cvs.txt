@@ -15,3 +15,4 @@ Fatoumata Diara, 56, Senegalese, living in Amsterdam. Data scientist with 4+ yea
 
 6. Data Scientist Resume #2 – Jacob Stein
 Jacob Stein, 34, Canadian, based in Toronto. Analytical data scientist with a background in mathematics and computer science. Experienced in building data pipelines, developing predictive models, and performing exploratory data analysis. Proficient in Python, R, SQL, and data visualization tools like Tableau and Power BI. Led experimentation and A/B testing strategies that improved product performance. Comfortable collaborating with product and engineering teams. Built fraud detection models using ensemble learning techniques with 92% accuracy. Curious and always learning, looking to apply machine learning in impactful industries.
+

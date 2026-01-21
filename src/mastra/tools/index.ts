@@ -1,4 +1,4 @@
-import { getAITracing } from '@mastra/core/ai-tracing';
+import { getAITracing, truncateString } from '@mastra/core/ai-tracing';
 import { getTracer } from '@mastra/core/loop/telemetry';
 import { createTool } from '@mastra/core/tools';
 import { ref } from 'process';
@@ -89,7 +89,7 @@ const sendEvaluation = async (referenceNumber: string, evaluation: { candidateNa
 
 // submit trace tool
 export const anchorTraceTool = createTool({
-  id: 'anchor-trace-tool',
+  id: 'anchor-trace',
   description: 'Anchor trace information for the current interaction',
   inputSchema: z.object({}),
   outputSchema: z.object({
@@ -116,5 +116,8 @@ const anchorTrace = async (traceId: string) => {
   if (!response.ok) {
     throw new Error(`Error anchoring trace: ${response.statusText}`);
   }
-  return { anchored: true };
+  return {
+    anchored: true, 
+    merkle_root: (await response.json()).merkle_root
+  };
 };

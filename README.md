@@ -1,37 +1,30 @@
-# Weather Agent
+# Hiring Agent
 
-A weather agent built with the Mastra framework that provides weather information and supports decentralized identity (DID) operations via cheqd MCP tools.
+A hiring assistant agent built with the Mastra framework that supports candidate screening, evaluation, and decentralized identity (DID) operations via the cheqd Studio API.
 
 ## Features
 
-- **Weather Information**: Get current weather for any location using the Open-Meteo API
-- **DID Operations**: Create and manage decentralized identifiers on cheqd network
-- **Credential Management**: Accept credentials, respond to proof requests, and manage connections
+- **Candidate Screening**: Retrieve job positions and evaluate candidates against job descriptions
+- **Evaluation Management**: Score candidates and submit evaluations to hiring managers
+- **DID Operations**: Create and manage decentralized identifiers on cheqd network via Studio API
+- **Trace Anchoring**: Anchor interaction traces for auditability
+- **Local DID Storage**: Persistent local database for DID management
 
 ## Prerequisites
 
 - Node.js 20+
-- Docker and Docker Compose
 - pnpm (or npm)
-- Access to the `mcp-toolkit` repository (should be at `../mcp-toolkit`)
+- cheqd Studio API key (get one at [studio.cheqd.io](https://studio.cheqd.io))
 
-## Running Locally
+## Setup
 
-### 1. Start the Local MCP Server
-
-The weather agent connects to a local MCP server for DID operations. Start it using Docker:
+### 1. Install Dependencies
 
 ```bash
-# From the weather-agent directory
-docker compose up -d
-
-# Check logs to ensure it's running
-docker compose logs -f
-
-# Wait for the server to be healthy (~60 seconds)
+pnpm install
+# or
+npm install
 ```
-
-The MCP server will be available at `http://localhost:3001/mcp`.
 
 ### 2. Configure Environment Variables
 
@@ -44,28 +37,18 @@ cp .env.example .env
 Edit `.env` with your values:
 
 ```env
-# Required: Your Anthropic API key (or OpenAI if using GPT models)
-ANTHROPIC_API_KEY=your-api-key-here
+# Required: Your OpenAI API key
+OPENAI_API_KEY=your-openai-api-key
 
 # Model to use (default: openai/gpt-4o)
-MODEL=anthropic/claude-opus-4-5
+MODEL=openai/gpt-4o
 
-# MCP Server URL (default points to local Docker server)
-MCP_SERVER_URL=http://localhost:3001/mcp
-
-# Cheqd wallet mnemonic for DID operations
-CHEQD_MNEMONIC=your-mnemonic-phrase-here
+# cheqd Studio API configuration
+STUDIO_API_URL=https://studio-api-staging.cheqd.net
+STUDIO_API_KEY=your-studio-api-key
 ```
 
-### 3. Install Dependencies
-
-```bash
-pnpm install
-# or
-npm install
-```
-
-### 4. Run the Agent
+### 3. Run the Agent
 
 ```bash
 pnpm dev
@@ -75,61 +58,123 @@ npm run dev
 
 ## Available Tools
 
-### Weather Tool
-- `get-weather`: Get current weather for a location (temperature, humidity, wind, conditions)
+### Hiring Tools
+- `get-open-positions`: Retrieve job positions from the company database by reference number
+- `send-evaluation`: Send candidate evaluations to the hiring manager
 
-### DID Tools (prefixed with `cheqd_`)
-- `cheqd_create-did`: Create a new DID on cheqd network (testnet/mainnet)
-- `cheqd_list-did`: List all DIDs in your wallet
-- `cheqd_resolve-did`: Resolve a DID document
+### DID Tools (cheqd Studio API)
+- `create-did-studio`: Create a new DID on the cheqd network (testnet/mainnet). Automatically checks local database first - if a DID already exists for the network, returns the existing one instead of creating a duplicate.
+- `update-did-studio`: Update an existing DID Document with new service endpoints
+- `list-dids-local`: List all DIDs stored in the local database (filter by network: all/testnet/mainnet)
 
-### Connection Tools
-- `cheqd_accept-connection-invitation-didcomm`: Accept DIDComm connection invitations
-- `cheqd_list-connections-didcomm`: List your connections
-- `cheqd_get-connection-record-didcomm`: Get connection details
+### Utility Tools
+- `anchor-trace`: Anchor trace information for auditability
 
-### Credential Tools
-- `cheqd_accept-credential-offer`: Accept credential offers
-- `cheqd_list-credentials`: List your credentials
-- `cheqd_get-credential-record`: Get credential details
+## DID Management
 
-### Proof Tools
-- `cheqd_accept-proof-request`: Respond to proof requests
-- `cheqd_list-proofs`: List proof exchanges
-- `cheqd_get-proof-record`: Get proof details
+### Local DID Database
 
-## DID Initialization
+DIDs are stored locally in `did-store.json` at the project root. This prevents duplicate DID creation and allows offline access to your DID information.
 
-On first startup, the agent automatically:
-1. Checks if a DID already exists in the wallet
-2. If no DID exists, creates a new one on the cheqd testnet
-
-## Stopping the MCP Server
-
-```bash
-docker compose down
+**Database format:**
+```json
+{
+  "dids": [
+    {
+      "did": "did:cheqd:testnet:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "network": "testnet",
+      "didDocument": { ... },
+      "createdAt": "2026-01-29T12:00:00.000Z",
+      "updatedAt": "2026-01-29T12:00:00.000Z"
+    }
+  ]
+}
 ```
 
-## Troubleshooting
+### Creating a DID
 
-### MCP Server not connecting
-- Ensure Docker is running
-- Check that port 3001 is not in use
-- Verify the `MCP_SERVER_URL` in `.env` matches the Docker port
+When you call `create-did-studio`, the tool will:
+1. Check the local database for an existing DID on the specified network
+2. If found, return the existing DID (no API call made)
+3. If not found, create a new DID via cheqd Studio API and store it locally
 
-### DID operations failing
-- Ensure `CHEQD_MNEMONIC` is set correctly in `.env`
-- Check the MCP server logs: `docker compose logs mcp-server`
+### Updating a DID with Services
+
+Use `update-did-studio` to add service endpoints to your DID:
+
+```json
+{
+  "did": "did:cheqd:testnet:your-did-id",
+  "services": [
+    {
+      "idFragment": "service-1",
+      "type": "LinkedDomains",
+      "serviceEndpoint": ["https://example.com"]
+    },
+    {
+      "idFragment": "messaging",
+      "type": "DIDCommMessaging",
+      "serviceEndpoint": ["https://example.com/didcomm"]
+    }
+  ]
+}
+```
+
+### Adding an Existing DID Manually
+
+To add an existing DID to the local database, create or edit `did-store.json`:
+
+```json
+{
+  "dids": [
+    {
+      "did": "did:cheqd:testnet:your-existing-did",
+      "network": "testnet",
+      "didDocument": {},
+      "createdAt": "2026-01-29T12:00:00.000Z",
+      "updatedAt": "2026-01-29T12:00:00.000Z"
+    }
+  ]
+}
+```
 
 ## Project Structure
 
 ```
-weather-agent/
+vai-demo-poc/
 ├── src/mastra/
-│   ├── agents/index.ts    # Weather agent definition
-│   ├── mcp/mcp-client.ts  # MCP client configuration
-│   ├── tools/index.ts     # Weather tool implementation
-│   └── workflows/index.ts # Weather workflow
-├── docker-compose.yml     # Local MCP server setup
-└── .env                   # Environment configuration
+│   ├── agents/index.ts    # Hiring agent definition
+│   ├── tools/index.ts     # Tool implementations (hiring, DID, trace)
+│   ├── workflows/index.ts # Evaluation workflow
+│   └── index.ts           # Mastra configuration
+├── did-store.json         # Local DID database (auto-created)
+├── .env                   # Environment configuration
+└── .env.example           # Environment template
 ```
+
+## Troubleshooting
+
+### DID operations failing
+- Ensure `STUDIO_API_KEY` is set correctly in `.env`
+- Check that the API key has the necessary permissions
+- Verify the `STUDIO_API_URL` is correct (staging vs production)
+
+### "DID already exists" behavior
+- This is expected! The `create-did-studio` tool checks the local database first
+- To force creation of a new DID, remove the existing entry from `did-store.json`
+
+### Local database issues
+- Ensure the application has write permissions to the project directory
+- Check `did-store.json` for valid JSON format
+- Delete `did-store.json` to reset the local database
+
+## API Reference
+
+### cheqd Studio API
+
+The agent uses the cheqd Studio API for DID operations:
+- **Base URL (Staging)**: `https://studio-api-staging.cheqd.net`
+- **Base URL (Production)**: `https://studio-api.cheqd.net`
+- **Authentication**: API key via `x-api-key` header
+
+For more information, see the [cheqd Studio documentation](https://docs.cheqd.io/product/getting-started/studio).

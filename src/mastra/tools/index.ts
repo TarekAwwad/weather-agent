@@ -121,3 +121,35 @@ const anchorTrace = async (traceId: string) => {
     merkle_root: (await response.json()).merkle_root
   };
 };
+
+// get application feedbacks tool
+export const getApplicationFeedbacksTool = createTool({
+  id: 'get-application-feedbacks',
+  description: 'Retrieve all feedbacks for job applications from the company database',
+  inputSchema: z.object({}),
+  outputSchema: z.object({
+    feedbacks: z.array(z.string()),
+  }),
+  execute: async () => {
+    return await getApplicationFeedbacks();
+  },
+});
+
+const getApplicationFeedbacks = async () => {
+  const response = await fetch('http://localhost:8000/applications');
+  if (!response.ok) {
+    throw new Error(`Error fetching applications: ${response.statusText}`);
+  }
+  const data = await response.json();
+  console.log('Fetched applications:', data);
+
+  var res = [];
+
+  // get only feedback field
+  for (const app of data) {
+    console.log('Application feedback:', app.feedback);
+    res.push(app.feedback);
+  }
+
+  return { feedbacks: res };
+};

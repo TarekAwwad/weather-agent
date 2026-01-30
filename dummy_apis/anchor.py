@@ -111,8 +111,10 @@ async def anchor_trace(request: TraceIDRequest):
 
 def fetch_trace_by_id(trace_id: str):
     api = f"http://localhost:4111/api/observability/traces/{trace_id}"
+    print("Fetching trace data from API:", api)
 
     response = requests.get(api)
+    print("Trace data response status:", response)
 
     if response.status_code == 200:
         spans = response.json().get("spans", [])

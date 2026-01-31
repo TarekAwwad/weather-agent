@@ -328,12 +328,46 @@ export async function getAgentLiveEvals(agentId: string): Promise<unknown[]> {
   return response.json();
 }
 
+// Mastra observability span type
+export interface MastraObservabilitySpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId: string | null;
+  name: string;
+  scope: string | null;
+  spanType: string;
+  attributes: Record<string, unknown>;
+  metadata: {
+    runId: string;
+    resourceId: string;
+    threadId: string;
+  };
+  input: Array<{ role: string; content: string }>;
+  output: { text: string; files: unknown[] } | null;
+  error: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isEvent: number;
+}
+
+export interface TracesResponse {
+  pagination: {
+    total: number;
+    page: number;
+    perPage: number;
+    hasMore: boolean;
+  };
+  spans: MastraObservabilitySpan[];
+}
+
 // Get observability traces (for audit purposes)
 export async function getTraces(options?: {
   page?: number;
   perPage?: number;
   name?: string;
-}): Promise<{ traces: unknown[]; total: number }> {
+}): Promise<TracesResponse> {
   const params = new URLSearchParams();
   if (options?.page !== undefined) params.append("page", String(options.page));
   if (options?.perPage !== undefined) params.append("perPage", String(options.perPage));

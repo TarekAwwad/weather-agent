@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/app/components/ui/badge";
 import { motion, AnimatePresence } from "motion/react";
-import { getTraces } from "@/lib/mastra-api";
+import { getTraces, type MastraObservabilitySpan } from "@/lib/mastra-api";
 
 interface TraceEvent {
   id: string;
@@ -35,39 +35,8 @@ interface TraceEvent {
   spanId?: string; // Mastra span ID
 }
 
-// Mastra trace response type - matches actual API response
-interface MastraSpan {
-  traceId: string;
-  spanId: string;
-  parentSpanId: string | null;
-  name: string;
-  scope: string | null;
-  spanType: string;
-  attributes: Record<string, unknown>;
-  metadata: {
-    runId: string;
-    resourceId: string;
-    threadId: string;
-  };
-  input: Array<{ role: string; content: string }>;
-  output: { text: string; files: unknown[] } | null;
-  error: string | null;
-  startedAt: string;
-  endedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  isEvent: number;
-}
-
-interface TracesResponse {
-  pagination: {
-    total: number;
-    page: number;
-    perPage: number;
-    hasMore: boolean;
-  };
-  spans: MastraSpan[];
-}
+// MastraSpan alias for local use
+type MastraSpan = MastraObservabilitySpan;
 
 const eventTypes = [
   "info",
@@ -124,7 +93,6 @@ export function ToolSection({
   // Mastra integration state
   const [useMastraTraces, setUseMastraTraces] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
-  const [lastFetchedTraceIds, setLastFetchedTraceIds] = useState<Set<string>>(new Set());
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Convert Mastra span to TraceEvent
@@ -166,11 +134,16 @@ export function ToolSection({
     };
   }, []);
 
+  // Use a ref to track seen IDs to avoid stale closure issues
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
   // Fetch traces from Mastra API
   const fetchMastraTraces = useCallback(async () => {
     try {
-      const response = await getTraces({ page: 0, perPage: 50 }) as unknown as TracesResponse;
+      const response = await getTraces({ page: 0, perPage: 50 });
       const spans = response.spans || [];
+
+      console.log("Fetched spans:", spans.length); // Debug log
 
       setIsConnected(true);
       setConnectionError(null);
@@ -181,19 +154,15 @@ export function ToolSection({
       for (const span of spans) {
         // Use spanId as unique identifier since traceId can be reused
         const uniqueKey = `${span.traceId}-${span.spanId}`;
-        if (!lastFetchedTraceIds.has(uniqueKey)) {
+        if (!seenIdsRef.current.has(uniqueKey)) {
+          seenIdsRef.current.add(uniqueKey);
           newEvents.push(convertMastraSpanToEvent(span));
         }
       }
 
-      if (newEvents.length > 0) {
-        // Update seen IDs
-        setLastFetchedTraceIds(prev => {
-          const updated = new Set(prev);
-          spans.forEach(s => updated.add(`${s.traceId}-${s.spanId}`));
-          return updated;
-        });
+      console.log("New events:", newEvents.length); // Debug log
 
+      if (newEvents.length > 0) {
         // Add new events
         setEvents(prev => [...prev, ...newEvents].slice(-100)); // Keep last 100 events
       }
@@ -202,7 +171,7 @@ export function ToolSection({
       setConnectionError(error instanceof Error ? error.message : "Failed to connect to Mastra API");
       console.error("Failed to fetch Mastra traces:", error);
     }
-  }, [lastFetchedTraceIds, convertMastraSpanToEvent]);
+  }, [convertMastraSpanToEvent]);
 
   // Handle demo context change with confirmation
   const requestDemoContextChange = (
@@ -231,7 +200,7 @@ export function ToolSection({
   // Reset demo context function
   const handleResetDemo = () => {
     setEvents([]);
-    setLastFetchedTraceIds(new Set());
+    seenIdsRef.current = new Set();
     setIsAutoScroll(true);
     setShowScrollButton(false);
   };
@@ -240,7 +209,7 @@ export function ToolSection({
   const toggleTraceSource = () => {
     setUseMastraTraces(prev => !prev);
     setEvents([]); // Clear events when switching
-    setLastFetchedTraceIds(new Set());
+    seenIdsRef.current = new Set(); // Clear seen IDs
     setConnectionError(null);
   };
 

@@ -17,6 +17,7 @@ import {
   Search,
   UserCheck,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
@@ -59,6 +60,8 @@ export function HiringAgent({ usecaseType }: HiringAgentProps) {
   const [uploadedCV, setUploadedCV] =
     useState<UploadedDocument | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [showAuditedModal, setShowAuditedModal] =
@@ -141,13 +144,74 @@ export function HiringAgent({ usecaseType }: HiringAgentProps) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const startEvaluationWorkflow = async (
+    referenceNumber: string,
+    resumeText: string
+  ) => {
+    const MASTRA_BASE_URL = "http://localhost:4111/api";
+    const response = await fetch(
+      `${MASTRA_BASE_URL}/workflows/evaluationWorkflow/start-async`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inputData: {
+            input: {
+              referenceNumber,
+              resume: resumeText,
+            },
+          },
+          runtimeContext: {},
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to start evaluation workflow: ${response.statusText}`);
+    }
+
+    return response.json();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedPosition && formData.fullName) {
-      setIsSubmitted(true);
-      setTimeout(() => {
-        setIsSubmitted(false);
-      }, 5000);
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      try {
+        // Generate a reference number from the position
+        const referenceNumber = `${selectedPosition.department.toUpperCase().slice(0, 3)}-${selectedPosition.id}-${Date.now().toString(36).toUpperCase()}`;
+
+        // Use cover letter as resume text, or generate a default application text
+        const resumeText = formData.coverLetter.trim()
+          || `Application from ${formData.fullName} for ${selectedPosition.title} position.`;
+
+        // Start the evaluation workflow
+        await startEvaluationWorkflow(referenceNumber, resumeText);
+
+        setIsSubmitted(true);
+        setTimeout(() => {
+          setIsSubmitted(false);
+          // Reset form after successful submission
+          setFormData({
+            fullName: "",
+            email: "",
+            phone: "",
+            coverLetter: "",
+          });
+          setSelectedPosition(null);
+        }, 5000);
+      } catch (error) {
+        console.error("Failed to submit application:", error);
+        setSubmitError(
+          error instanceof Error ? error.message : "Failed to submit application"
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -401,12 +465,45 @@ export function HiringAgent({ usecaseType }: HiringAgentProps) {
                             {/* Submit Button */}
                             <Button
                               type="submit"
-                              disabled={!formData.fullName}
+                              disabled={!formData.fullName || isSubmitting}
                               className="w-full rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white py-6 font-medium shadow-lg shadow-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              <Send className="w-4 h-4 mr-2" />
-                              Submit Application
+                              {isSubmitting ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-4 h-4 mr-2" />
+                                  Submit Application
+                                </>
+                              )}
                             </Button>
+
+                            {/* Error Message */}
+                            <AnimatePresence>
+                              {submitError && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: 10 }}
+                                  className="p-4 rounded-2xl bg-gradient-to-br from-red-50 to-rose-50 border border-red-200/60"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                                    <div>
+                                      <p className="text-sm font-medium text-red-900">
+                                        Submission Failed
+                                      </p>
+                                      <p className="text-xs text-red-700 mt-0.5">
+                                        {submitError}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
 
                             {/* Success Message */}
                             <AnimatePresence>
@@ -424,9 +521,7 @@ export function HiringAgent({ usecaseType }: HiringAgentProps) {
                                         Application Submitted!
                                       </p>
                                       <p className="text-xs text-emerald-700 mt-0.5">
-                                        We'll review your
-                                        application and get back
-                                        to you soon.
+                                        AI evaluation workflow started. Check the Trace Monitor for progress.
                                       </p>
                                     </div>
                                   </div>
